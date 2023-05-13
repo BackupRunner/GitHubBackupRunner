@@ -1,0 +1,31 @@
+name: Run GitHub Backup
+
+on:
+    push:
+        branches: ["main"]
+    schedule:
+        - cron: "0 0 1 * *"
+
+env:
+    BASE_DIR: ${{ vars.BASE_DIR }}
+    GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+    GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+    GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
+
+jobs:
+    build:
+        runs-on: self-hosted
+        if: contains(github.event.head_commit.message, 'skip ci') == false
+        steps:
+            - uses: actions/checkout@v3
+            - name: Setup Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: "18"
+            - name: Install Dependencies
+              run: npm install
+            - name: Setup Creds
+              run: |
+                  echo $GOOGLE_DRIVE_CREDENTIALS | base64 -d > credentials.json
+            - name: Run GitHub Backup
+              run: npm run backup
