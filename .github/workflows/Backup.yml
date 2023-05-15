@@ -15,6 +15,7 @@ env:
 jobs:
     build:
         runs-on: self-hosted
+        timeout-minutes: 3600
         if: contains(github.event.head_commit.message, 'skip ci') == false
         steps:
             - uses: actions/checkout@v3
