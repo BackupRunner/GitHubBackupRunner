@@ -39,7 +39,8 @@ const orgs = ["VSArchive", "VSWSL"]
 
 const cloneRepo = async (url: string) => {
     url = url.replace("https://github.com", `https://vineelsai26:${process.env.GITHUB_TOKEN}@github.com`)
-    const repoPath = path.join(baseDir, url.split("/")[3], url.split("/")[4])
+    const repoBasePath = path.join(baseDir, url.split("/")[3])
+    const repoPath = path.join(repoBasePath, url.split("/")[4])
     const repoGitPath = path.join(repoPath, ".git")
     if (fs.existsSync(repoPath) && fs.existsSync(repoGitPath)) {
         const { stdout, stderr } = await execAsync(`cd ${repoPath} && git pull`)
@@ -48,7 +49,7 @@ const cloneRepo = async (url: string) => {
         const { stdout, stderr } = await execAsync(`cd ${repoPath} && git clone ${url} .`)
         console.log(stdout, stderr)
     } else {
-        const { stdout, stderr } = await execAsync(`GIT_LFS_SKIP_SMUDGE=1 git clone ${url}`)
+        const { stdout, stderr } = await execAsync(`cd ${repoBasePath} && GIT_LFS_SKIP_SMUDGE=1 git clone ${url}`)
         console.log(stdout, stderr)
     }
 }
