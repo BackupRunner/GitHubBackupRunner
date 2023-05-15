@@ -48,8 +48,7 @@ const cloneRepo = async (url: string) => {
         const { stdout, stderr } = await execAsync(`cd ${repoPath} && git clone ${url} .`)
         console.log(stdout, stderr)
     } else {
-        fs.mkdirSync(repoPath, { recursive: true })
-        const { stdout, stderr } = await execAsync(`cd ${repoPath} && git clone ${url} .`)
+        const { stdout, stderr } = await execAsync(`GIT_LFS_SKIP_SMUDGE=1 git clone ${url}`)
         console.log(stdout, stderr)
     }
 }
