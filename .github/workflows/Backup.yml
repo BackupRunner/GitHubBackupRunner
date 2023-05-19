@@ -9,8 +9,8 @@ on:
 env:
     BASE_DIR: ${{ vars.BASE_DIR }}
     GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-    GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-    GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
+    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
     build:
@@ -25,8 +25,6 @@ jobs:
                   node-version: "18"
             - name: Install Dependencies
               run: npm install
-            - name: Setup Creds
-              run: |
-                  echo $GOOGLE_DRIVE_CREDENTIALS | base64 -d > credentials.json
+            
             - name: Run GitHub Backup
               run: npm run backup

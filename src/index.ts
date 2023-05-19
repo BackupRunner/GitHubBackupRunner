@@ -5,8 +5,15 @@ import path from "path"
 import util from "util"
 
 import { Octokit } from "octokit"
-import { google } from 'googleapis'
-import { GoogleAuth } from 'googleapis-common'
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
+
+const client = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
+    }
+})
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN })
 const baseDir = process.env.BASE_DIR!
@@ -35,24 +42,14 @@ interface OrganizationData {
 
 const users = ["vineelsai26"]
 
-const orgs = ["VSArchive", "VSWSL"]
+const orgs = ["VSArchive", "VSWSL", "BackupRunner", "AutomationRunner"]
 
 const cloneRepo = async (url: string) => {
     url = url.replace("https://github.com", `https://vineelsai26:${process.env.GITHUB_TOKEN}@github.com`)
     const repoBasePath = path.join(baseDir, url.split("/")[3])
-    const repoPath = path.join(repoBasePath, url.split("/")[4])
-    const repoGitPath = path.join(repoPath, ".git")
-    if (fs.existsSync(repoPath) && fs.existsSync(repoGitPath)) {
-        const { stdout, stderr } = await execAsync(`cd ${repoPath} && git pull`)
-        console.log(stdout, stderr)
-    } else if (fs.existsSync(repoPath) && !fs.existsSync(repoGitPath)) {
-        const { stdout, stderr } = await execAsync(`cd ${repoPath} && git clone ${url} .`)
-        console.log(stdout, stderr)
-    } else {
-        fs.mkdirSync(repoBasePath, { recursive: true })
-        const { stdout, stderr } = await execAsync(`cd ${repoBasePath} && GIT_LFS_SKIP_SMUDGE=1 git clone ${url}`)
-        console.log(stdout, stderr)
-    }
+    fs.mkdirSync(repoBasePath, { recursive: true })
+    const { stdout, stderr } = await execAsync(`cd ${repoBasePath} && git clone --mirror ${url}`)
+    console.log(stdout, stderr)
 }
 
 const run = async () => {
@@ -92,45 +89,34 @@ const run = async () => {
 await run()
 
 try {
-    await execAsync(`tar --use-compress-program=pigz -cf repos.tar.gz ${baseDir}`, {
+    await execAsync(`tar -cvzf - repos | split --bytes=${4*1024*1024*1024} - repos.tar.gz.`, {
         maxBuffer: 1024 * 1024 * 1024
     })
 
-    const SCOPES = ['https://www.googleapis.com/auth/drive.file']
+    const files = fs.readdirSync(".")
 
-    const auth = new google.auth.GoogleAuth({
-        keyFile: 'credentials.json',
-        scopes: SCOPES
-    })
+    files.forEach((file) => {
+        if (file.startsWith("repos.tar.gz")) {
+            const backup = fs.createReadStream(file)
 
-    function uploadFile(auth: GoogleAuth) {
-        const drive = google.drive({ version: 'v3', auth })
- 
-        const media = {
-            mimeType: 'image/jpeg',
-            body: fs.createReadStream('repos.tar.gz')
-        }
-        drive.files.create({
-            media: media,
-            requestBody: {
-                name: 'repos.tar.gz',
-                parents: [
-                    process.env.GOOGLE_DRIVE_FOLDER_ID!
-                ],
-            },
-            fields: 'id,name'
-        }, (err, file) => {
-            if (err) {
-                // Handle error
-                console.error(err)
-            } else {
-                console.log('File Id: ', file?.data.id)
+            const date = new Date().getUTCDate() + "-" + (new Date().getUTCMonth() + 1) + "-" + new Date().getUTCFullYear()
+            const params = {
+                Bucket: process.env.AWS_BUCKET!,
+                Key: `GitHub/Backup-${date}/${file}`,
+                Body: backup,
+                StorageClass: "DEEP_ARCHIVE"
             }
-        })
-    }
 
-    uploadFile(auth)
-
+            client.send(new PutObjectCommand(params), (err, _) => {
+                if (err) {
+                    console.error(err)
+                    process.exit(1)
+                } else {
+                    console.log("Backup successful")
+                }
+            })
+        }
+    })
 } catch (err) {
     console.error(err)
 }
