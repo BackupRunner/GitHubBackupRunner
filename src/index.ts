@@ -102,7 +102,7 @@ try {
             const date = new Date().getUTCDate() + "-" + (new Date().getUTCMonth() + 1) + "-" + new Date().getUTCFullYear()
             const params = {
                 Bucket: process.env.AWS_BUCKET!,
-                Key: `GitHub/Backup-${date}/${file}`,
+                Key: `Backup-${date}/${file}`,
                 Body: backup,
                 StorageClass: "DEEP_ARCHIVE"
             }
