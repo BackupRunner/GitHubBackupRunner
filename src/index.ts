@@ -42,7 +42,7 @@ interface OrganizationData {
 
 const users = ["vineelsai26"]
 
-const orgs = ["VSArchive", "VSWSL", "BackupRunner", "AutomationRunner"]
+const orgs = ["VSArchive", "VSWSL", "BackupRunner", "AutomationRunner", "VSPlayStore"]
 
 const cloneRepo = async (url: string) => {
     url = url.replace("https://github.com", `https://vineelsai26:${process.env.GITHUB_TOKEN}@github.com`)
@@ -89,7 +89,7 @@ const run = async () => {
 await run()
 
 try {
-    await execAsync(`tar -cvzf - repos | split --bytes=${4*1024*1024*1024} - repos.tar.gz.`, {
+    await execAsync(`tar --use-compress-program=pigz -cf - repos | split --bytes=${4*1024*1024*1024} - repos.tar.gz.`, {
         maxBuffer: 1024 * 1024 * 1024
     })
 
