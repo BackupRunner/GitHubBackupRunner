@@ -5,18 +5,13 @@ import path from "path"
 import util from "util"
 
 import { Octokit } from "octokit"
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
-
-const client = new S3Client({
-    region: process.env.AWS_REGION,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
-    }
-})
+import { Dropbox } from "dropbox"
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN })
 const baseDir = process.env.BASE_DIR!
+const DROPBOX_ACCESS_TOKEN = process.env.DROPBOX_ACCESS_TOKEN!
+
+var dbx = new Dropbox({ accessToken: DROPBOX_ACCESS_TOKEN })
 
 const execAsync = util.promisify(exec)
 
@@ -31,13 +26,13 @@ interface UserData {
 }
 
 interface OrganizationData {
-	organization: {
-		repositories: {
-			nodes: Array<{
-				url: string
-			}>
-		}
-	}
+    organization: {
+        repositories: {
+            nodes: Array<{
+                url: string
+            }>
+        }
+    }
 }
 
 const users = ["vineelsai26"]
@@ -69,8 +64,8 @@ const run = async () => {
         }
     }
 
-	for await (const org of orgs) {
-		const organizationData: OrganizationData = await octokit.graphql(`query {
+    for await (const org of orgs) {
+        const organizationData: OrganizationData = await octokit.graphql(`query {
 			organization(login: "${org}") {
 				repositories(first: 100 ownerAffiliations: OWNER) {
 					nodes {
@@ -80,43 +75,71 @@ const run = async () => {
 			}
 		}`)
 
-		organizationData.organization.repositories.nodes.map((repo) => {
-			cloneRepo(repo.url)
-		})
-	}
+        organizationData.organization.repositories.nodes.map((repo) => {
+            cloneRepo(repo.url)
+        })
+    }
 }
 
 await run()
 
 try {
-    await execAsync(`tar --use-compress-program=pigz -cf - repos | split --bytes=${4*1024*1024*1024} - repos.tar.gz.`, {
+    await execAsync(`tar --use-compress-program=pigz -cf repos.tar.gz repos`, {
         maxBuffer: 1024 * 1024 * 1024
     })
 
-    const files = fs.readdirSync(".")
+    const date = new Date().getUTCDate() + "-" + (new Date().getUTCMonth() + 1) + "-" + new Date().getUTCFullYear()
 
-    files.forEach((file) => {
-        if (file.startsWith("repos.tar.gz")) {
-            const backup = fs.createReadStream(file)
+    // Create upload session
+    dbx.filesUploadSessionStart({ close: false })
+        .then(response => {
+            const sessionId = response.result.session_id
+            const readStream = fs.createReadStream("repos.tar.gz")
+            let uploadedSize = 0
+            readStream.on('data', chunk => {
+                uploadedSize += chunk.length
 
-            const date = new Date().getUTCDate() + "-" + (new Date().getUTCMonth() + 1) + "-" + new Date().getUTCFullYear()
-            const params = {
-                Bucket: process.env.AWS_BUCKET!,
-                Key: `Backup-${date}/${file}`,
-                Body: backup,
-                StorageClass: "DEEP_ARCHIVE"
-            }
-
-            client.send(new PutObjectCommand(params), (err, _) => {
-                if (err) {
-                    console.error(err)
-                    process.exit(1)
-                } else {
-                    console.log("Backup successful")
-                }
+                // Append data to upload session
+                dbx.filesUploadSessionAppendV2({
+                    contents: chunk,
+                    cursor: {
+                        session_id: sessionId,
+                        offset: uploadedSize - chunk.length
+                    },
+                    close: false
+                }).then(() => {
+                    if (uploadedSize >= fs.statSync("repos.tar.gz").size) {
+                        // Finalize upload session
+                        dbx.filesUploadSessionFinish({
+                            cursor: {
+                                session_id: sessionId,
+                                offset: uploadedSize
+                            },
+                            commit: {
+                                path: `/Backup/${date}/repos.tar.gz`,
+                                mode: { '.tag': 'add' },
+                                autorename: false,
+                                mute: false
+                            }
+                        }).then(response => {
+                            console.log('File uploaded successfully:', response)
+                        }).catch(error => {
+                            console.error('Error finishing upload session:', error)
+                        })
+                    }
+                }).catch(error => {
+                    console.error('Error appending to upload session:', error)
+                })
             })
-        }
-    })
+
+            readStream.on('end', () => {
+                console.log('File reading completed.')
+            })
+
+        })
+        .catch(error => {
+            console.error('Error starting upload session:', error)
+        })
 } catch (err) {
     console.error(err)
 }

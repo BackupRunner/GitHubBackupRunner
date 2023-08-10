@@ -9,10 +9,7 @@ on:
 env:
     BASE_DIR: ${{ vars.BASE_DIR }}
     GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-    AWS_REGION: ${{ secrets.AWS_REGION }}
-    AWS_BUCKET: ${{ secrets.AWS_BUCKET }}
+    DROPBOX_ACCESS_TOKEN: ${{ secrets.DROPBOX_ACCESS_TOKEN }}
 
 jobs:
     build:
@@ -27,6 +24,6 @@ jobs:
                   node-version: "18"
             - name: Install Dependencies
               run: npm install
-            
+
             - name: Run GitHub Backup
               run: npm run backup
